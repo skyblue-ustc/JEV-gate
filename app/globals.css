@@ -1,0 +1,74 @@
+git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-gkvmqKd6' (errno=Operation not permitted)
+git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-C51lUVlZ' (errno=Operation not permitted)
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../vendor/shadcn-tailwind-4.13.0.css";
+
+:root {
+  --background: #07110f;
+  --foreground: #ecf7f1;
+  --card: #0d201b;
+  --card-foreground: #ecf7f1;
+  --popover: #0d201b;
+  --popover-foreground: #ecf7f1;
+  --primary: #6ee7b7;
+  --primary-foreground: #052018;
+  --secondary: #152b25;
+  --secondary-foreground: #ecf7f1;
+  --muted: #152b25;
+  --muted-foreground: #8ba69b;
+  --accent: #1a342c;
+  --accent-foreground: #ecf7f1;
+  --destructive: #fb7185;
+  --border: #ffffff18;
+  --input: #ffffff1f;
+  --ring: #6ee7b7;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+* { border-color: var(--border); }
+html { background: var(--background); }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+.decision-card { border: 1px solid; border-radius: 1rem; padding: 1.25rem; }
+.decision-card.emerald { border-color: rgb(110 231 183 / 25%); background: linear-gradient(145deg, rgb(16 185 129 / 18%), rgb(16 185 129 / 5%)); color: #d1fae5; }
+.decision-card.rose { border-color: rgb(251 113 133 / 25%); background: linear-gradient(145deg, rgb(244 63 94 / 18%), rgb(244 63 94 / 5%)); color: #ffe4e6; }
+.decision-card.amber { border-color: rgb(252 211 77 / 25%); background: linear-gradient(145deg, rgb(245 158 11 / 17%), rgb(245 158 11 / 5%)); color: #fef3c7; }
+
+@media (max-width: 1023px) {
+  main > section { background: transparent; }
+  main > section > aside:first-child { min-height: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
