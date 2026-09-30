@@ -1,146 +1,199 @@
-# JevGate — Agent Action Firewall
+<div align="center">
 
-一个面向 AI Agent 工具调用的实时审批网关。Agent 每次准备读文件、发送消息、退款或删除数据前，JevGate 用 Jev 做一次快速、类型安全的判断，再由确定性策略路由到 **ALLOW / ASK / BLOCK**。项目还内置 Jev vs DeepSeek A/B 面板，直接展示两种 API 的原始结构化输出、耗时、Token 与价格差。
+# 🛡️ JevGate
 
-> 这是公开作品集项目，所有案例均为合成数据。没有 API Key 时可完整运行 Demo Mode；配置 TypeSafe API Key 后自动切换为真实 Jev 调用。
+### Fast, typed approval for AI agent actions
 
-## 30 秒理解
+在 Agent 调用工具前，用 Jev 快速判断：**ALLOW / ASK / BLOCK**
 
-通用 LLM 擅长规划和生成，但把每个细小动作都交给生成式模型复核，会产生额外延时、输出成本和 JSON 解析风险。JevGate 把“是否允许执行”拆成四个原子判断，并在一次请求中并行完成：
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Open_JevGate-10b981?style=for-the-badge&logo=vercel&logoColor=white)](https://jev-guard-studio.citrus-grove-3996.chatgpt.site)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=nextdotjs)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Jev](https://img.shields.io/badge/Jev-System_One-34d399?style=flat-square)](https://docs.typesafe.ai/)
+[![DeepSeek](https://img.shields.io/badge/Baseline-DeepSeek_V4-7c3aed?style=flat-square)](https://api-docs.deepseek.com/)
+[![License](https://img.shields.io/badge/License-MIT-f5c542?style=flat-square)](LICENSE)
 
-- `Choice`：动作属于只读、可逆写入、外部副作用还是破坏性操作？
-- `Score`：当前动作的风险位于 0–3 的哪个区间？
-- `Noul`：用户是否明确授权了这个具体动作？
-- `Noul`：谨慎的操作者是否应该先确认？
+[在线演示](https://jev-guard-studio.citrus-grove-3996.chatgpt.site) · [快速开始](#-快速开始) · [面试讲法](#-60-秒面试讲法)
 
-Jev 只返回类型化值和概率，不生成解释文本。最终动作始终由策略代码决定。
+</div>
 
-## 为什么这个 Demo 能突出 Jev
+---
 
-### 快
+## 💡 这是什么？
 
-四个问题共享同一份状态、一次并行返回。界面直接展示端到端耗时，适合放在高频 Agent loop 中。
+Agent 很擅长规划任务，但它准备执行的动作不一定都应该被立即放行：
 
-### 省
+- 读取工作区文件，可以直接执行吗？
+- 给客户退款，需要用户再次确认吗？
+- 删除生产数据，是否已经越权？
 
-只传与动作判断有关的紧凑状态，不要求模型生成分析过程或审批文案。界面展示输入规模和“自由文本输出 = 0”。
-
-### 没有结构性幻觉
-
-这里的准确说法不是“模型永远不会判断错”，而是：**Jev 不生成自由文本，因此消除了 JSON 解析失败、字段名漂移和编造额外动作等结构性幻觉。** 语义判断仍可能出错，所以系统保留概率阈值、确定性规则和人工确认。
-
-## A/B 对照如何运行
-
-同一份动作状态会并行发送到两条路径：
-
-| 对照项 | Jev | 普通生成式 LLM |
-| --- | --- | --- |
-| API | TypeSafe `POST /v1/systemone` | OpenAI-compatible `POST /v1/chat/completions` |
-| 模型 | `jev-latest` | `DeepSeek-V4-Pro-0813` |
-| 输出 | 原生 Choice / Score / Noul、概率分布与置信度 | Prompt 约束的 JSON 文本，再解析和 Schema 校验 |
-| 计费 | 输入 $0.042 / 1M Token，输出免费 | 输入、输出 Token 分别计费 |
-| 展示 | 原始响应、规范化信号、端到端耗时、Token、单次估算价格 | 同左 |
-
-只有两边都配置真实 Key 时，页面才标记 `LIVE × LIVE`。一边缺 Key 会明确显示 `MIXED · 非公平实测`，两边都缺 Key 则显示 `DEMO × DEMO`。
-
-## 三个演示案例
-
-| Agent 动作 | 关键信号 | 预期路由 |
-| --- | --- | --- |
-| 读取工作区架构文档 | 只读、用户明确要求、本地范围 | `ALLOW` |
-| 向客户退款 699 元 | 外部资金副作用、未明确授权 | `ASK` |
-| 删除生产客户数据与备份 | 破坏性、越出用户目标、未授权 | `BLOCK` |
-
-拖动右侧阈值后重新判断，可以直观看到业务方如何在自动化率与风险之间做取舍。
-
-## 架构
+**JevGate 是 Agent 与工具之间的决策防火墙。**
 
 ```text
-User goal + session context + proposed tool call
-                         │
-                         ▼
-                 Jev typed questions
-           Choice · Score · Noul · Noul
-                         │
-                         ▼
-           typed values + probability signals
-                         │
-                         ▼
-              deterministic policy gate
-                 ┌───────┼───────┐
-                 ▼       ▼       ▼
-               ALLOW    ASK    BLOCK
-                         │
-                         ▼
-               human feedback / eval set
+Agent proposes a tool call
+            │
+            ▼
+      Jev typed decisions
+  Choice · Score · Noul · Noul
+            │
+            ▼
+    Deterministic policy
+      ┌─────┼─────┐
+      ▼     ▼     ▼
+    ALLOW  ASK  BLOCK
 ```
 
-关键实现：
+Jev 只提供类型化判断和概率，最终动作由应用代码决定。
 
-- `app/api/decide/route.ts`：Jev 问题、服务端调用、失败关闭和路由策略
-- `app/page.tsx`：交互式审批工作台、阈值实验与人工反馈
-- `.env.example`：真实 Jev 调用的服务端配置
+## 🎮 三个演示案例
 
-## 本地运行
+| Agent 动作 | 关键风险 | 预期结果 |
+| --- | --- | :---: |
+| 📄 读取工作区文档 | 只读、范围明确 | `ALLOW` |
+| 💳 向客户退款 ¥699 | 资金副作用、授权不清 | `ASK` |
+| 🗑️ 删除生产数据与备份 | 破坏性、超出用户目标 | `BLOCK` |
+
+在演示页面中可以调整风险阈值，观察自动化率与安全边界如何变化。
+
+## ⚡ 为什么用 Jev？
+
+Jev 是面向软件决策的 System One 模型。它接收状态和类型化问题，直接返回代码可以消费的结果。
+
+| | Jev | 普通生成式 LLM |
+| --- | --- | --- |
+| 输出 | 原生 `Choice / Score / Noul` | 生成 JSON 文本后再解析 |
+| 多个判断 | 同一请求内并行完成 | 通常需要生成完整回答 |
+| 置信信号 | 概率分布与 confidence | 需要额外设计或估计 |
+| 输出费用 | 免费 | 按输出 Token 计费 |
+| 常见失败 | 语义判断可能错误 | 语义错误 + 格式漂移 + 解析失败 |
+
+> [!IMPORTANT]
+> “没有幻觉”在这里准确指：Jev 不生成自由文本，因此避免 JSON 字段漂移、额外动作和解析失败等**结构性幻觉**。它的语义判断仍可能出错，所以必须保留阈值、规则和人工确认。
+
+## 📊 Jev vs DeepSeek A/B
+
+项目会把同一个动作状态并行发送到两条路径：
+
+```text
+                         ┌─ Jev /v1/systemone
+Same action state ───────┤  → typed probabilities
+                         │
+                         └─ DeepSeek /v1/chat/completions
+                            → generated JSON → parse → validate
+```
+
+页面直接展示：
+
+- 两边的原始 API 响应
+- 规范化后的决策字段
+- 端到端耗时
+- 输入 / 输出 Token
+- 单次估算价格与倍率差
+
+运行状态不会混淆：
+
+| 标记 | 含义 |
+| --- | --- |
+| `LIVE × LIVE` | 两边都是真实 API 调用 |
+| `MIXED` | 一边真实、一边 Demo，不用于公平结论 |
+| `DEMO × DEMO` | 可重复的本地演示数据 |
+
+## 🏗️ 核心设计
+
+一次 Jev 请求并行回答四个原子问题：
+
+1. **Choice** — 动作属于只读、可逆写入、外部副作用还是破坏性操作？
+2. **Score** — 当前动作的风险位于 0–3 的哪个区间？
+3. **Noul** — 用户是否明确授权了这个具体动作？
+4. **Noul** — 谨慎的操作者是否应该先确认？
+
+策略代码再将这些信号组合成最终路由。模型没有工具执行权限。
+
+## 🚀 快速开始
 
 要求 Node.js 22.13+。
 
 ```bash
+git clone https://github.com/skyblue-ustc/JEV-gate.git
+cd JEV-gate
 npm install
 cp .env.example .env.local
 npm run dev
 ```
 
-不填写 Key 即进入稳定的 Demo Mode。真实调用请配置：
+打开 `http://localhost:5173`。不配置 Key 时自动进入 Demo Mode。
+
+### 配置真实 API
 
 ```dotenv
-TYPESAFE_API_KEY=your_server_side_key
+# TypeSafe Jev
+TYPESAFE_API_KEY=your_typesafe_key
 JEV_MODEL=jev-latest
-BASELINE_API_KEY=your_openai_compatible_key
-BASELINE_BASE_URL=https://lightingtheword.com
+
+# OpenAI-compatible DeepSeek baseline
+BASELINE_API_KEY=your_api_key
+BASELINE_BASE_URL=https://your-provider.example.com
 BASELINE_MODEL=DeepSeek-V4-Pro-0813
 ```
 
-访问 `http://localhost:5173`。
+所有 Key 只在服务端使用，不会进入浏览器代码或 Git 历史。
 
-## 安全与工程边界
+## 🔒 安全边界
 
-1. API Key 只存在服务端，不发送到浏览器。
-2. 破坏性且未授权的动作由代码直接阻止。
-3. 资金、消息、账户变更等副作用默认要求确认。
-4. API 超时、缺字段或异常响应时 fail closed，不静默放行。
-5. Jev 负责判断，不拥有工具执行权限。
-6. Demo Mode 的数据明确标识，避免把预置结果伪装成线上测量。
-7. 价格使用真实 Token 用量计算；DeepSeek 采用官方峰值牌价估算，代理站实际扣费可能不同。
+- API 失败、超时或 Schema 校验失败时，动作不会被静默放行
+- 破坏性且未授权的动作直接阻止
+- 资金、消息和账户变更默认要求确认
+- Jev 负责判断，普通代码负责策略，执行器负责动作
+- Demo 数据始终带有明确标记
+- 第三方代理的实际价格可能与官方牌价不同
 
-## 面试讲法
+## 🎤 60 秒面试讲法
 
-> 我的设计不是用 Jev 替换负责规划的强 LLM，而是在 Agent 和工具之间增加一个 System One 决策层。强 LLM 负责“想做什么”，Jev 用一次类型化调用快速判断动作类别、风险、授权和确认需求，普通代码再做 ALLOW、ASK、BLOCK 路由。这样高频动作不必每次触发长文本生成，也没有 JSON 格式漂移。对于破坏性和低置信动作，系统仍然交给人，而不是把概率误当事实。
+> JevGate 是我为 AI Agent 做的动作审批层。强 LLM 负责规划“下一步做什么”，但每次工具调用前，我会把用户目标、工具参数和会话状态发送给 Jev。Jev 在一次请求里并行判断动作类型、风险、授权和人工确认需求，然后由确定性代码路由到 ALLOW、ASK 或 BLOCK。
+>
+> 我还做了 Jev 与 DeepSeek 的 A/B 面板，同屏展示原始输出、耗时、Token 和价格。它说明 Jev 的价值不是替代所有大模型，而是在高频、边界清楚的判断点上，减少自由文本生成、格式解析和输出成本。对于低置信或高影响动作，系统仍然交给人。
 
-可以继续深挖四个点：
+面试官可以继续追问：
 
-- 为什么问题要拆成四个原子判断，而不是问“这个动作安全吗”？
-- 为什么阈值属于业务策略，不应该写在 Prompt 里？
-- “无自由文本幻觉”和“语义判断永远正确”有什么区别？
-- 如何用人工确认/覆盖样本做阈值校准和回放评测？
+- 为什么拆成四个原子问题，而不是直接问“安全吗”？
+- 为什么阈值写在代码里，而不是 Prompt 里？
+- 怎样用人工确认和覆盖样本做离线评测？
+- “没有结构性幻觉”和“模型永远正确”有什么区别？
 
-## 下一步
+## 📁 项目结构
 
-- 接入真实 Agent hooks，在工具执行前调用 JevGate
-- 增加 JSONL Trace 回放与 coverage-risk 曲线
-- 记录 P50/P95 延时、每千次决策成本、误放率与打扰率
-- 增加 prompt injection / tool-result injection 的独立判断
+```text
+app/
+├── page.tsx              # 审批工作台与 A/B 面板
+└── api/decide/route.ts   # Jev、DeepSeek 调用与策略门控
 
-## 技术栈
+.env.example              # 服务端环境变量模板
+README.md                 # 项目说明与面试叙事
+```
 
-Next.js / React / TypeScript / Tailwind CSS / TypeSafe Jev API / Cloudflare Workers compatible runtime
+## 📚 参考资料
 
-## 价格与接口来源
+- [TypeSafe Jev：模型与价格](https://docs.typesafe.ai/models)
+- [TypeSafe：API Reference](https://docs.typesafe.ai/api)
+- [TypeSafe：Parallel Questions](https://docs.typesafe.ai/cookbooks/parallel_questions)
+- [DeepSeek：Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing)
 
-- [TypeSafe Jev models & pricing](https://docs.typesafe.ai/models)：Jev 1.13 输入 $0.042 / 1M Token，输出 Token 免费。
-- [TypeSafe API reference](https://docs.typesafe.ai/api)：`POST /v1/systemone` 请求与类型化响应格式。
-- [DeepSeek models & pricing](https://api-docs.deepseek.com/quick_start/pricing)：DeepSeek V4 Pro 官方 Token 价格；第三方代理的实际计费可能不同。
+## 🗺️ Roadmap
 
-## License
+- [x] Agent 动作审批工作台
+- [x] Jev / DeepSeek 原始输出对比
+- [x] 延时、Token 与价格对比
+- [x] Demo / Mixed / Live 状态标记
+- [ ] JSONL Trace 回放与批量评测
+- [ ] Coverage–Risk 阈值曲线
+- [ ] Prompt injection 独立检测
 
-MIT
+---
+
+<div align="center">
+
+Built for safe, fast and auditable agent execution.
+
+**[Try the live demo →](https://jev-guard-studio.citrus-grove-3996.chatgpt.site)**
+
+</div>
