@@ -13,7 +13,7 @@
 [![DeepSeek](https://img.shields.io/badge/Baseline-DeepSeek_V4-7c3aed?style=flat-square)](https://api-docs.deepseek.com/)
 [![License](https://img.shields.io/badge/License-MIT-f5c542?style=flat-square)](LICENSE)
 
-[在线演示](https://jev-guard-studio.citrus-grove-3996.chatgpt.site) · [快速开始](#-快速开始) · [面试讲法](#-60-秒面试讲法)
+[在线演示](https://jev-guard-studio.citrus-grove-3996.chatgpt.site) · [A/B 对比](#-jev-vs-deepseek-ab) · [快速开始](#-快速开始)
 
 </div>
 
@@ -147,19 +147,6 @@ BASELINE_MODEL=DeepSeek-V4-Pro-0813
 - Demo 数据始终带有明确标记
 - 第三方代理的实际价格可能与官方牌价不同
 
-## 🎤 60 秒面试讲法
-
-> JevGate 是我为 AI Agent 做的动作审批层。强 LLM 负责规划“下一步做什么”，但每次工具调用前，我会把用户目标、工具参数和会话状态发送给 Jev。Jev 在一次请求里并行判断动作类型、风险、授权和人工确认需求，然后由确定性代码路由到 ALLOW、ASK 或 BLOCK。
->
-> 我还做了 Jev 与 DeepSeek 的 A/B 面板，同屏展示原始输出、耗时、Token 和价格。它说明 Jev 的价值不是替代所有大模型，而是在高频、边界清楚的判断点上，减少自由文本生成、格式解析和输出成本。对于低置信或高影响动作，系统仍然交给人。
-
-面试官可以继续追问：
-
-- 为什么拆成四个原子问题，而不是直接问“安全吗”？
-- 为什么阈值写在代码里，而不是 Prompt 里？
-- 怎样用人工确认和覆盖样本做离线评测？
-- “没有结构性幻觉”和“模型永远正确”有什么区别？
-
 ## 📁 项目结构
 
 ```text
@@ -168,7 +155,7 @@ app/
 └── api/decide/route.ts   # Jev、DeepSeek 调用与策略门控
 
 .env.example              # 服务端环境变量模板
-README.md                 # 项目说明与面试叙事
+README.md                 # 项目说明与设计文档
 ```
 
 ## 📚 参考资料
