@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-uSvTNrGg' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-wO7ZRydq' (errno=Operation not permitted)
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-dwtUcCXx' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-W5D9zIM0' (errno=Operation not permitted)
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 

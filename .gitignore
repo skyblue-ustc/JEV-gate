@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-nDKJGcHV' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-EUoZcd9V' (errno=Operation not permitted)
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies

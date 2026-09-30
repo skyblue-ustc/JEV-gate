@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-gNWCzuBN' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-3ys0d7AL' (errno=Operation not permitted)
 # JevGate — Agent Action Firewall
 
 一个面向 AI Agent 工具调用的实时审批网关。Agent 每次准备读文件、发送消息、退款或删除数据前，JevGate 用 Jev 做一次快速、类型安全的判断，再由确定性策略路由到 **ALLOW / ASK / BLOCK**。项目还内置 Jev vs DeepSeek A/B 面板，直接展示两种 API 的原始结构化输出、耗时、Token 与价格差。

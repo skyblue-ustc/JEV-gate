@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-jg39NJUU' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-qqLzwpTN' (errno=Operation not permitted)
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"

@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-qOZth9ms' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-s5A4mbgy' (errno=Operation not permitted)
 {
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "new-york",

@@ -1,4 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-GRAlYghV' (errno=Operation not permitted)
 import * as React from "react"
 import { cva } from "class-variance-authority"
 import { ChevronDownIcon } from "lucide-react"
@@ -167,4 +166,3 @@ export {
   NavigationMenuViewport,
   navigationMenuTriggerStyle,
 }
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-8vZogLqo' (errno=Operation not permitted)

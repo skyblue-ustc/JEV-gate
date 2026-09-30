@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-y3CSwkLc' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-DHP8NfGP' (errno=Operation not permitted)
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 

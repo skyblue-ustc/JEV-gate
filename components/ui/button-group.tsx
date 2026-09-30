@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-MMH0baMP' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-7dmlB5vX' (errno=Operation not permitted)
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 

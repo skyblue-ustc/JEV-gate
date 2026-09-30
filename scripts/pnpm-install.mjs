@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-F9pAHBtH' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-ZsnRZ70D' (errno=Operation not permitted)
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {

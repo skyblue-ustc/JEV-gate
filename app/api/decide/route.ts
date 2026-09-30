@@ -1,5 +1,3 @@
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-LY1KDUN0' (errno=Operation not permitted)
-git: error: couldn't create cache file '/var/folders/zz/zyxvpxvq6csfxvn_n00001yr0000gp/T/xcrun_db-K00Oe40G' (errno=Operation not permitted)
 import { NextResponse } from "next/server";
 
 type JevAnswer = { type: string; choice?: string; score?: number; noul?: number; confidence?: number; probabilities?: Record<string, number>; legend?: Record<string, string> };
