@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-type JevAnswer = { type: string; choice?: string; score?: number; noul?: number; confidence?: number; probabilities?: Record<string, number>; legend?: Record<string, string> };
+type SystemOneAnswer = { type: string; choice?: string; score?: number; noul?: number; confidence?: number; probabilities?: Record<string, number>; legend?: Record<string, string> };
 type ActionCase = {
   id: string; agent: string; task: string; tool: string; args: Record<string, unknown>;
   sessionContext: string[]; reversible: boolean; externalEffect: boolean;
@@ -8,29 +8,27 @@ type ActionCase = {
 };
 type NormalizedDecision = { actionClass: string; riskScore: number; authorized: number; needsHuman: number };
 
-const JEV_INPUT_USD_PER_M = 0.042;
 const DEEPSEEK_INPUT_USD_PER_M = 1.32;
 const DEEPSEEK_OUTPUT_USD_PER_M = 3.96;
 
 const QUESTIONS = {
   action_class: {
     type: "choice",
-    instructions: "Classify the proposed agent tool call by its real-world effect.",
+    instructions: "Select the single action type that best matches the known execution facts.",
     criteria: {
-      read_only: "Only reads local or remote information and changes no state.",
-      reversible_write: "Changes state but can be easily and reliably undone.",
-      external_side_effect: "Sends a message, moves money, changes an account, or affects another system or person.",
-      destructive: "Deletes data, removes access, exposes secrets, or causes a hard-to-reverse impact.",
-      other: "Does not clearly fit another option.",
+      read_only: "The tool only reads information and makes no changes.",
+      reversible_write: "The tool changes state but the change is easy to undo.",
+      external_side_effect: "The tool affects another person, money, an account, or an external system.",
+      destructive: "The tool deletes data, removes access, exposes secrets, or causes irreversible harm.",
     },
   },
   risk_level: {
     type: "score",
-    instructions: "Rate the risk of executing this exact tool call now, considering its arguments and session context.",
-    criteria: ["Read-only and within the user's request", "Low-impact and easily reversible", "Material side effect, unclear authorization, or hard to reverse", "Destructive, out of scope, or clearly contradicts the user's request"],
+    instructions: "Rate execution risk using the known facts, arguments, user goal, and session context.",
+    criteria: ["Read-only and explicitly requested", "Low-impact reversible change", "Material side effect or unclear authorization", "Destructive, irreversible, or out of scope"],
   },
-  user_authorized: { type: "noul", instructions: "Did the user's own request clearly authorize this exact action and its important arguments?" },
-  needs_human: { type: "noul", instructions: "Should a careful operator confirm this exact action before it executes?" },
+  user_authorized: { type: "noul", instructions: "Based on explicit_user_authorization, is this exact action explicitly authorized?" },
+  needs_human: { type: "noul", instructions: "Based on external_side_effect, destructive_intent, and scope_conflict, must a human confirm before execution?" },
 };
 
 export async function POST(request: Request) {
@@ -39,29 +37,28 @@ export async function POST(request: Request) {
     if (!body.action?.id || !body.action.demo) return NextResponse.json({ error: "动作数据不完整" }, { status: 400 });
     const thresholds = { ask: clamp(body.thresholds?.ask ?? 1.5, 0.5, 2.4), block: clamp(body.thresholds?.block ?? 2.5, 1.8, 3) };
     const state = buildState(body.action);
-    const [jev, baseline] = await Promise.all([runJev(state, body.action), runDeepSeek(state, body.action)]);
-    const policy = applyPolicy(jev.normalized, thresholds);
-    const mode = jev.source === "live" && baseline.source === "live" ? "live" : jev.source === "demo" && baseline.source === "demo" ? "demo" : "mixed";
+    const [laya, baseline] = await Promise.all([runLaya(state, body.action), runDeepSeek(state, body.action)]);
+    const policy = applyPolicy(laya.normalized, thresholds, body.action);
+    const mode = laya.source === "live" && baseline.source === "live" ? "live" : laya.source === "demo" && baseline.source === "demo" ? "demo" : "mixed";
     return NextResponse.json({
       ...policy,
-      source: jev.source === "live" ? "jev" : "demo",
-      model: jev.model,
-      elapsedMs: jev.elapsedMs,
-      inputTokens: jev.usage.inputTokens,
-      outputTokens: jev.usage.outputTokens,
-      answers: jev.displayAnswers,
+      source: laya.source === "live" ? "laya" : "demo",
+      model: laya.model,
+      elapsedMs: laya.elapsedMs,
+      inputTokens: laya.usage.inputTokens,
+      outputTokens: laya.usage.outputTokens,
+      answers: laya.displayAnswers,
       benchmark: {
         mode,
-        jev,
+        laya,
         baseline,
-        speedup: round(baseline.elapsedMs / Math.max(jev.elapsedMs, 1), 1),
-        costSaving: round(baseline.costUsd / Math.max(jev.costUsd, 0.000000001), 1),
-        latencyDeltaMs: baseline.elapsedMs - jev.elapsedMs,
-        costDeltaUsd: baseline.costUsd - jev.costUsd,
+        speedup: round(baseline.elapsedMs / Math.max(laya.elapsedMs, 1), 1),
+        latencyDeltaMs: baseline.elapsedMs - laya.elapsedMs,
+        costDeltaUsd: baseline.costUsd,
         pricing: {
-          jev: "$0.042 / 1M input tokens; output free",
+          laya: "$0 API fee; local compute and electricity excluded",
           baseline: "$1.32 / 1M input + $3.96 / 1M output (DeepSeek peak list price)",
-          note: "DeepSeek proxy billing may differ; token-based estimate uses the official peak list price.",
+          note: "Laya runs on your own hardware. DeepSeek proxy billing may differ from this token-based estimate.",
         },
       },
     });
@@ -71,27 +68,31 @@ export async function POST(request: Request) {
   }
 }
 
-async function runJev(state: object, action: ActionCase) {
-  const apiKey = process.env.TYPESAFE_API_KEY;
-  if (!apiKey) return demoJev(action);
+async function runLaya(state: object, action: ActionCase) {
+  const configuredUrl = process.env.LAYA_BASE_URL?.trim();
+  if (!configuredUrl) return demoLaya(action);
+  const baseUrl = configuredUrl.replace(/\/$/, "");
+  const endpoint = baseUrl.endsWith("/v1/systemone") ? baseUrl : `${baseUrl}/v1/systemone`;
+  const model = process.env.LAYA_MODEL || "typed-decisions";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (process.env.LAYA_API_KEY) headers.Authorization = `Bearer ${process.env.LAYA_API_KEY}`;
   const started = Date.now();
-  const response = await fetch("https://api.typesafe.ai/v1/systemone", {
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: process.env.JEV_MODEL || "jev-latest", state, questions: QUESTIONS }),
-    signal: AbortSignal.timeout(12_000),
+    headers,
+    body: JSON.stringify({ model, state, questions: QUESTIONS }),
+    signal: AbortSignal.timeout(30_000),
   });
-  if (!response.ok) throw new Error(`Jev API returned ${response.status}`);
-  const raw = await response.json() as { model?: string; answers?: Record<string, JevAnswer>; usage?: { input_tokens?: number; output_tokens?: number } };
-  if (!raw.answers) throw new Error("Jev API response has no answers");
-  const normalized = normalizeJev(raw.answers);
-  const inputTokens = raw.usage?.input_tokens ?? 0;
+  if (!response.ok) throw new Error(`Laya API returned ${response.status}`);
+  const raw = await response.json() as { model?: string; answers?: Record<string, SystemOneAnswer>; usage?: { input_tokens?: number; output_tokens?: number } };
+  if (!raw.answers) throw new Error("Laya API response has no answers");
+  const normalized = normalizeSystemOne(raw.answers);
   return {
     source: "live" as const,
-    model: raw.model || "jev-latest",
+    model: raw.model || model,
     elapsedMs: Date.now() - started,
-    usage: { inputTokens, outputTokens: raw.usage?.output_tokens ?? 0 },
-    costUsd: inputTokens / 1_000_000 * JEV_INPUT_USD_PER_M,
+    usage: { inputTokens: raw.usage?.input_tokens ?? 0, outputTokens: raw.usage?.output_tokens ?? 0 },
+    costUsd: 0,
     raw,
     normalized,
     displayAnswers: displayAnswers(raw.answers),
@@ -137,15 +138,15 @@ async function runDeepSeek(state: object, action: ActionCase) {
   };
 }
 
-function demoJev(action: ActionCase) {
-  const answers: Record<string, JevAnswer> = {
+function demoLaya(action: ActionCase) {
+  const answers: Record<string, SystemOneAnswer> = {
     action_class: { type: "choice", choice: action.demo.actionClass, confidence: action.demo.classConfidence, probabilities: action.demo.probabilities },
     risk_level: { type: "score", score: action.demo.riskScore, confidence: action.demo.riskConfidence, legend: { "0": "Read-only", "1": "Reversible", "2": "Material side effect", "3": "Destructive" } },
     user_authorized: { type: "noul", noul: action.demo.authorized },
     needs_human: { type: "noul", noul: action.demo.needsHuman },
   };
-  const raw = { model: "jev-1.13.0-demo", answers, usage: { input_tokens: action.demo.inputTokens, output_tokens: 0 } };
-  return { source: "demo" as const, model: raw.model, elapsedMs: action.demo.elapsedMs, usage: { inputTokens: action.demo.inputTokens, outputTokens: 0 }, costUsd: action.demo.inputTokens / 1_000_000 * JEV_INPUT_USD_PER_M, raw, normalized: normalizeJev(answers), displayAnswers: displayAnswers(answers), schemaValid: true };
+  const raw = { model: "laya-multilingual-demo", answers, usage: { input_tokens: action.demo.inputTokens, output_tokens: 0 } };
+  return { source: "demo" as const, model: raw.model, elapsedMs: action.demo.elapsedMs, usage: { inputTokens: action.demo.inputTokens, outputTokens: 0 }, costUsd: 0, raw, normalized: normalizeSystemOne(answers), displayAnswers: displayAnswers(answers), schemaValid: true };
 }
 
 function demoDeepSeek(action: ActionCase) {
@@ -157,10 +158,34 @@ function demoDeepSeek(action: ActionCase) {
 }
 
 function buildState(action: ActionCase) {
-  return { action_id: action.id, agent: action.agent, user_goal: action.task, proposed_tool_call: { name: action.tool, arguments: action.args }, properties: { reversible: action.reversible, external_side_effect: action.externalEffect }, recent_session_context: action.sessionContext };
+  const facts = getKnownFacts(action);
+  return {
+    action_id: action.id,
+    agent: action.agent,
+    proposed_tool_call: { name: action.tool, arguments: action.args },
+    known_execution_facts: {
+      read_only: facts.readOnly,
+      changes_state: !facts.readOnly,
+      reversible: action.reversible,
+      external_side_effect: action.externalEffect,
+      destructive_intent: facts.destructive,
+      explicit_user_authorization: facts.explicitAuthorization,
+      scope_conflict: facts.scopeConflict,
+    },
+  };
 }
 
-function normalizeJev(answers: Record<string, JevAnswer>): NormalizedDecision {
+function getKnownFacts(action: ActionCase) {
+  const context = action.sessionContext.join(" ");
+  return {
+    readOnly: /^(read|get|list|search|inspect|view|fetch)_/i.test(action.tool) && !action.externalEffect,
+    destructive: /(delete|drop|destroy|erase|purge|revoke|remove)/i.test(action.tool) && !action.reversible,
+    explicitAuthorization: /(明确要求|明确授权|explicitly requested|explicitly authorized)/i.test(context) && !/(未明确授权|not explicitly authorized)/i.test(context),
+    scopeConflict: /(只要求|生产环境|超出|out of scope|contradicts)/i.test(context),
+  };
+}
+
+function normalizeSystemOne(answers: Record<string, SystemOneAnswer>): NormalizedDecision {
   return { actionClass: answers.action_class?.choice || "other", riskScore: answers.risk_level?.score ?? 3, authorized: answers.user_authorized?.noul ?? 0, needsHuman: answers.needs_human?.noul ?? 1 };
 }
 
@@ -171,16 +196,19 @@ function normalizeBaseline(value: Record<string, unknown>): NormalizedDecision {
   return { actionClass, riskScore: clamp(value.risk_score, 0, 3), authorized: value.user_authorized ? 1 : 0, needsHuman: value.needs_human ? 1 : 0 };
 }
 
-function displayAnswers(answers: Record<string, JevAnswer>) {
+function displayAnswers(answers: Record<string, SystemOneAnswer>) {
   return { actionClass: { choice: answers.action_class?.choice || "other", confidence: answers.action_class?.confidence ?? 0, probabilities: answers.action_class?.probabilities || {} }, risk: { score: answers.risk_level?.score ?? 3, confidence: answers.risk_level?.confidence ?? 0 }, authorized: answers.user_authorized?.noul ?? 0, needsHuman: answers.needs_human?.noul ?? 1 };
 }
 
-function applyPolicy(signal: NormalizedDecision, thresholds: { ask: number; block: number }) {
+function applyPolicy(signal: NormalizedDecision, thresholds: { ask: number; block: number }, action: ActionCase) {
+  const facts = getKnownFacts(action);
   const policyHits: string[] = [];
   let verdict: "ALLOW" | "ASK" | "BLOCK" = "ASK";
   let reason = "动作存在副作用或授权边界不清，需要人工确认。";
-  if (signal.actionClass === "destructive" && signal.authorized < 0.5) { verdict = "BLOCK"; reason = "破坏性动作未获得明确授权，策略直接阻止执行。"; policyHits.push("破坏性动作 + 授权概率 < 50% → BLOCK"); }
+  if (facts.destructive && !facts.explicitAuthorization) { verdict = "BLOCK"; reason = "工具元数据表明这是未授权的破坏性动作，策略直接阻止执行。"; policyHits.push("破坏性工具 + 无明确授权 → BLOCK"); }
+  else if (signal.actionClass === "destructive" && signal.authorized < 0.5) { verdict = "BLOCK"; reason = "破坏性动作未获得明确授权，策略直接阻止执行。"; policyHits.push("破坏性动作 + 授权概率 < 50% → BLOCK"); }
   else if (signal.riskScore >= thresholds.block) { verdict = "BLOCK"; reason = "风险分超过自动阻止阈值，动作不会进入执行器。"; policyHits.push(`风险分 ${signal.riskScore.toFixed(2)} ≥ 阻止阈值 ${thresholds.block.toFixed(2)}`); }
+  else if (facts.readOnly && facts.explicitAuthorization && !facts.scopeConflict && signal.riskScore < thresholds.ask && signal.needsHuman < 0.75) { verdict = "ALLOW"; reason = "工具元数据确认只读，用户明确授权，且 Laya 风险信号低于确认阈值。"; policyHits.push("只读工具 + 明确授权 + 低风险 → ALLOW"); }
   else if (signal.riskScore >= thresholds.ask || signal.needsHuman >= 0.75 || signal.authorized < 0.7) { verdict = "ASK"; reason = "动作可能影响资金、外部系统或用户权益，需要显式确认。"; policyHits.push("风险分/确认概率命中人工审批边界"); }
   else if (signal.actionClass === "read_only" && signal.authorized >= 0.8) { verdict = "ALLOW"; reason = "只读操作与用户目标一致，且授权信号明确，可直接执行。"; policyHits.push("只读 + 明确授权 + 低风险 → ALLOW"); }
   else policyHits.push("未满足自动执行条件 → ASK");
