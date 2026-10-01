@@ -10,6 +10,7 @@ type NormalizedDecision = { actionClass: string; riskScore: number; authorized: 
 
 const DEEPSEEK_INPUT_USD_PER_M = 1.32;
 const DEEPSEEK_OUTPUT_USD_PER_M = 3.96;
+const JEV_INPUT_USD_PER_M = 0.042;
 
 const QUESTIONS = {
   action_class: {
@@ -37,28 +38,28 @@ export async function POST(request: Request) {
     if (!body.action?.id || !body.action.demo) return NextResponse.json({ error: "动作数据不完整" }, { status: 400 });
     const thresholds = { ask: clamp(body.thresholds?.ask ?? 1.5, 0.5, 2.4), block: clamp(body.thresholds?.block ?? 2.5, 1.8, 3) };
     const state = buildState(body.action);
-    const [laya, baseline] = await Promise.all([runLaya(state, body.action), runDeepSeek(state, body.action)]);
-    const policy = applyPolicy(laya.normalized, thresholds, body.action);
-    const mode = laya.source === "live" && baseline.source === "live" ? "live" : laya.source === "demo" && baseline.source === "demo" ? "demo" : "mixed";
+    const [jev, baseline] = await Promise.all([runJev(state, body.action), runDeepSeek(state, body.action)]);
+    const policy = applyPolicy(jev.normalized, thresholds, body.action);
+    const mode = jev.source === "live" && baseline.source === "live" ? "live" : jev.source === "demo" && baseline.source === "demo" ? "demo" : "mixed";
     return NextResponse.json({
       ...policy,
-      source: laya.source === "live" ? "laya" : "demo",
-      model: laya.model,
-      elapsedMs: laya.elapsedMs,
-      inputTokens: laya.usage.inputTokens,
-      outputTokens: laya.usage.outputTokens,
-      answers: laya.displayAnswers,
+      source: jev.source === "live" ? "jev" : "demo",
+      model: jev.model,
+      elapsedMs: jev.elapsedMs,
+      inputTokens: jev.usage.inputTokens,
+      outputTokens: jev.usage.outputTokens,
+      answers: jev.displayAnswers,
       benchmark: {
         mode,
-        laya,
+        jev,
         baseline,
-        speedup: round(baseline.elapsedMs / Math.max(laya.elapsedMs, 1), 1),
-        latencyDeltaMs: baseline.elapsedMs - laya.elapsedMs,
-        costDeltaUsd: baseline.costUsd,
+        speedup: round(baseline.elapsedMs / Math.max(jev.elapsedMs, 1), 1),
+        latencyDeltaMs: baseline.elapsedMs - jev.elapsedMs,
+        costDeltaUsd: baseline.costUsd - jev.costUsd,
         pricing: {
-          laya: "$0 API fee; local compute and electricity excluded",
+          jev: "$0.042 / 1M input tokens; output tokens free",
           baseline: "$1.32 / 1M input + $3.96 / 1M output (DeepSeek peak list price)",
-          note: "Laya runs on your own hardware. DeepSeek proxy billing may differ from this token-based estimate.",
+          note: "Both figures are token-based estimates. The DeepSeek proxy's actual billing may differ.",
         },
       },
     });
@@ -68,14 +69,14 @@ export async function POST(request: Request) {
   }
 }
 
-async function runLaya(state: object, action: ActionCase) {
-  const configuredUrl = process.env.LAYA_BASE_URL?.trim();
-  if (!configuredUrl) return demoLaya(action);
+async function runJev(state: object, action: ActionCase) {
+  const apiKey = process.env.JEV_API_KEY?.trim();
+  if (!apiKey) return demoJev(action);
+  const configuredUrl = (process.env.JEV_BASE_URL || "https://api.typesafe.ai").trim();
   const baseUrl = configuredUrl.replace(/\/$/, "");
   const endpoint = baseUrl.endsWith("/v1/systemone") ? baseUrl : `${baseUrl}/v1/systemone`;
-  const model = process.env.LAYA_MODEL || "typed-decisions";
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (process.env.LAYA_API_KEY) headers.Authorization = `Bearer ${process.env.LAYA_API_KEY}`;
+  const model = process.env.JEV_MODEL || "jev-latest";
+  const headers: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
   const started = Date.now();
   const response = await fetch(endpoint, {
     method: "POST",
@@ -83,16 +84,16 @@ async function runLaya(state: object, action: ActionCase) {
     body: JSON.stringify({ model, state, questions: QUESTIONS }),
     signal: AbortSignal.timeout(30_000),
   });
-  if (!response.ok) throw new Error(`Laya API returned ${response.status}`);
+  if (!response.ok) throw new Error(`JEV API returned ${response.status}`);
   const raw = await response.json() as { model?: string; answers?: Record<string, SystemOneAnswer>; usage?: { input_tokens?: number; output_tokens?: number } };
-  if (!raw.answers) throw new Error("Laya API response has no answers");
+  if (!raw.answers) throw new Error("JEV API response has no answers");
   const normalized = normalizeSystemOne(raw.answers);
   return {
     source: "live" as const,
     model: raw.model || model,
     elapsedMs: Date.now() - started,
     usage: { inputTokens: raw.usage?.input_tokens ?? 0, outputTokens: raw.usage?.output_tokens ?? 0 },
-    costUsd: 0,
+    costUsd: (raw.usage?.input_tokens ?? 0) / 1_000_000 * JEV_INPUT_USD_PER_M,
     raw,
     normalized,
     displayAnswers: displayAnswers(raw.answers),
@@ -138,15 +139,15 @@ async function runDeepSeek(state: object, action: ActionCase) {
   };
 }
 
-function demoLaya(action: ActionCase) {
+function demoJev(action: ActionCase) {
   const answers: Record<string, SystemOneAnswer> = {
     action_class: { type: "choice", choice: action.demo.actionClass, confidence: action.demo.classConfidence, probabilities: action.demo.probabilities },
     risk_level: { type: "score", score: action.demo.riskScore, confidence: action.demo.riskConfidence, legend: { "0": "Read-only", "1": "Reversible", "2": "Material side effect", "3": "Destructive" } },
     user_authorized: { type: "noul", noul: action.demo.authorized },
     needs_human: { type: "noul", noul: action.demo.needsHuman },
   };
-  const raw = { model: "laya-multilingual-demo", answers, usage: { input_tokens: action.demo.inputTokens, output_tokens: 0 } };
-  return { source: "demo" as const, model: raw.model, elapsedMs: action.demo.elapsedMs, usage: { inputTokens: action.demo.inputTokens, outputTokens: 0 }, costUsd: 0, raw, normalized: normalizeSystemOne(answers), displayAnswers: displayAnswers(answers), schemaValid: true };
+  const raw = { model: "jev-demo", answers, usage: { input_tokens: action.demo.inputTokens, output_tokens: action.demo.inputTokens > 0 ? 82 : 0 } };
+  return { source: "demo" as const, model: raw.model, elapsedMs: action.demo.elapsedMs, usage: { inputTokens: action.demo.inputTokens, outputTokens: raw.usage.output_tokens }, costUsd: action.demo.inputTokens / 1_000_000 * JEV_INPUT_USD_PER_M, raw, normalized: normalizeSystemOne(answers), displayAnswers: displayAnswers(answers), schemaValid: true };
 }
 
 function demoDeepSeek(action: ActionCase) {
@@ -208,7 +209,7 @@ function applyPolicy(signal: NormalizedDecision, thresholds: { ask: number; bloc
   if (facts.destructive && !facts.explicitAuthorization) { verdict = "BLOCK"; reason = "工具元数据表明这是未授权的破坏性动作，策略直接阻止执行。"; policyHits.push("破坏性工具 + 无明确授权 → BLOCK"); }
   else if (signal.actionClass === "destructive" && signal.authorized < 0.5) { verdict = "BLOCK"; reason = "破坏性动作未获得明确授权，策略直接阻止执行。"; policyHits.push("破坏性动作 + 授权概率 < 50% → BLOCK"); }
   else if (signal.riskScore >= thresholds.block) { verdict = "BLOCK"; reason = "风险分超过自动阻止阈值，动作不会进入执行器。"; policyHits.push(`风险分 ${signal.riskScore.toFixed(2)} ≥ 阻止阈值 ${thresholds.block.toFixed(2)}`); }
-  else if (facts.readOnly && facts.explicitAuthorization && !facts.scopeConflict && signal.riskScore < thresholds.ask && signal.needsHuman < 0.75) { verdict = "ALLOW"; reason = "工具元数据确认只读，用户明确授权，且 Laya 风险信号低于确认阈值。"; policyHits.push("只读工具 + 明确授权 + 低风险 → ALLOW"); }
+  else if (facts.readOnly && facts.explicitAuthorization && !facts.scopeConflict && signal.riskScore < thresholds.ask && signal.needsHuman < 0.75) { verdict = "ALLOW"; reason = "工具元数据确认只读，用户明确授权，且 JEV 风险信号低于确认阈值。"; policyHits.push("只读工具 + 明确授权 + 低风险 → ALLOW"); }
   else if (signal.riskScore >= thresholds.ask || signal.needsHuman >= 0.75 || signal.authorized < 0.7) { verdict = "ASK"; reason = "动作可能影响资金、外部系统或用户权益，需要显式确认。"; policyHits.push("风险分/确认概率命中人工审批边界"); }
   else if (signal.actionClass === "read_only" && signal.authorized >= 0.8) { verdict = "ALLOW"; reason = "只读操作与用户目标一致，且授权信号明确，可直接执行。"; policyHits.push("只读 + 明确授权 + 低风险 → ALLOW"); }
   else policyHits.push("未满足自动执行条件 → ASK");

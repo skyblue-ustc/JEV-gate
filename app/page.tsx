@@ -12,17 +12,17 @@ type ActionCase = {
 };
 
 type Decision = {
-  verdict: "ALLOW" | "ASK" | "BLOCK"; reason: string; policyHits: string[]; source: "laya" | "demo";
+  verdict: "ALLOW" | "ASK" | "BLOCK"; reason: string; policyHits: string[]; source: "jev" | "demo";
   model: string; elapsedMs: number; inputTokens: number; outputTokens: number;
   answers: { actionClass: { choice: string; confidence: number; probabilities: Record<string, number> }; risk: { score: number; confidence: number }; authorized: number; needsHuman: number };
   benchmark: {
     mode: "live" | "mixed" | "demo";
-    laya: EngineResult;
+    jev: EngineResult;
     baseline: EngineResult;
     speedup: number;
     latencyDeltaMs: number;
     costDeltaUsd: number;
-    pricing: { laya: string; baseline: string; note: string };
+    pricing: { jev: string; baseline: string; note: string };
   };
 };
 
@@ -99,7 +99,7 @@ export default function Home() {
       }, { signal: lifecycle.signal });
       await context.registerTool({
         name: "evaluate_agent_action", title: "Evaluate agent action",
-        description: "Run the same local Laya decision used by the visible UI for a proposed action and return its ALLOW, ASK, or BLOCK route.",
+        description: "Run the same JEV decision used by the visible UI for a proposed action and return its ALLOW, ASK, or BLOCK route.",
         inputSchema: { type: "object", properties: { action_id: { type: "string", enum: actions.map((item) => item.id) } }, required: ["action_id"], additionalProperties: false },
         annotations: { readOnlyHint: false, untrustedContentHint: false },
         async execute(input) {
@@ -137,7 +137,7 @@ export default function Home() {
         <div className="mx-auto flex max-w-[1600px] items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-9 place-items-center rounded-xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-300"><ShieldCheck className="size-5" /></div>
-            <div><div className="flex items-center gap-2"><h1 className="text-base font-semibold tracking-tight">JevGate</h1><span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[11px] font-medium text-emerald-200">Open System One Firewall</span></div><p className="text-xs text-white/45">由本地开源 Laya 为 Agent 工具调用提供类型化判断</p></div>
+            <div><div className="flex items-center gap-2"><h1 className="text-base font-semibold tracking-tight">JevGate</h1><span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[11px] font-medium text-emerald-200">System One Firewall</span></div><p className="text-xs text-white/45">由 TypeSafe JEV 为 Agent 工具调用提供类型化判断</p></div>
           </div>
           <div className="hidden items-center gap-5 text-sm text-white/55 sm:flex"><span className="flex items-center gap-2"><Zap className="size-4 text-emerald-300" />单请求并行判断</span><span className="h-5 w-px bg-white/10" /><span className="font-mono text-xs text-white/40">policy v1.0.0</span></div>
         </div>
@@ -172,17 +172,17 @@ export default function Home() {
 
             <div className="mt-5"><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-medium">会话上下文</h3><span className="text-xs text-white/35">只发送判断所需状态</span></div><div className="space-y-2">{selected.sessionContext.map((item, index) => <div key={item} className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3.5"><span className={`grid size-5 shrink-0 place-items-center rounded-full text-[11px] ${index === 2 && selected.id === "ACT-0320" ? "bg-rose-400/12 text-rose-300" : "bg-emerald-300/10 text-emerald-200"}`}>{index === 2 && selected.id === "ACT-0320" ? <AlertTriangle className="size-3" /> : <Check className="size-3" />}</span><p className="text-sm text-white/68">{item}</p></div>)}</div></div>
 
-            <div className="mt-6 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.035] p-5"><div className="flex items-center justify-between gap-4"><div><div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="size-4 text-emerald-300" />运行 Laya vs DeepSeek 对照</div><p className="mt-1 text-xs leading-5 text-white/42">向本地开源决策模型与生成式 API 发送同一状态，对比结构、耗时、Token 与 API 费用。</p></div><Button onClick={runDecision} disabled={loading} className="h-11 rounded-xl bg-emerald-300 px-5 text-[#062019] hover:bg-emerald-200">{loading ? <LoaderCircle className="size-4 animate-spin" /> : <GitBranch className="size-4" />}{loading ? "对比中" : "运行 A/B"}</Button></div>{error && <p role="alert" className="mt-3 text-sm text-rose-300">{error}</p>}</div>
+            <div className="mt-6 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.035] p-5"><div className="flex items-center justify-between gap-4"><div><div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="size-4 text-emerald-300" />运行 JEV vs DeepSeek 对照</div><p className="mt-1 text-xs leading-5 text-white/42">向官方决策 API 与生成式 API 发送同一状态，对比结构、耗时、Token 与估算费用。</p></div><Button onClick={runDecision} disabled={loading} className="h-11 rounded-xl bg-emerald-300 px-5 text-[#062019] hover:bg-emerald-200">{loading ? <LoaderCircle className="size-4 animate-spin" /> : <GitBranch className="size-4" />}{loading ? "对比中" : "运行 A/B"}</Button></div>{error && <p role="alert" className="mt-3 text-sm text-rose-300">{error}</p>}</div>
           </div>
         </section>
 
         <aside className="bg-[#091713] p-5 lg:min-h-[calc(100vh-73px)] lg:p-6">
-          <div className="flex items-center justify-between"><div><p className="text-sm font-medium">Decision Gate</p><p className="mt-0.5 text-xs text-white/40">Laya 信号 × 策略代码</p></div>{decision && <span className={`rounded-full px-2.5 py-1 text-[11px] ${decision.source === "laya" ? "bg-emerald-300/10 text-emerald-200" : "bg-sky-300/10 text-sky-200"}`}>{decision.source === "laya" ? "LIVE LAYA" : "DEMO MODE"}</span>}</div>
-          {!decision ? <div className="mt-5 rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-white/5 text-white/30"><GitBranch className="size-6" /></div><p className="mt-4 text-sm font-medium text-white/65">等待判断</p><p className="mx-auto mt-2 max-w-[260px] text-xs leading-5 text-white/35">选择动作并运行 Laya，这里会显示类型化结果、概率与最终策略路由。</p></div> : verdict ? (
+          <div className="flex items-center justify-between"><div><p className="text-sm font-medium">Decision Gate</p><p className="mt-0.5 text-xs text-white/40">JEV 信号 × 策略代码</p></div>{decision && <span className={`rounded-full px-2.5 py-1 text-[11px] ${decision.source === "jev" ? "bg-emerald-300/10 text-emerald-200" : "bg-sky-300/10 text-sky-200"}`}>{decision.source === "jev" ? "LIVE JEV" : "DEMO MODE"}</span>}</div>
+          {!decision ? <div className="mt-5 rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-white/5 text-white/30"><GitBranch className="size-6" /></div><p className="mt-4 text-sm font-medium text-white/65">等待判断</p><p className="mx-auto mt-2 max-w-[260px] text-xs leading-5 text-white/35">选择动作并运行 JEV，这里会显示类型化结果、概率与最终策略路由。</p></div> : verdict ? (
             <div className="mt-5">
               <div className={`decision-card ${verdict.color}`}><div className="flex items-start justify-between"><div className="grid size-11 place-items-center rounded-xl bg-white/10"><verdict.icon className="size-5" /></div><span className="font-mono text-[11px] opacity-60">{decision.elapsedMs} ms</span></div><p className="mt-5 text-xs uppercase tracking-[0.12em] opacity-55">Policy route</p><p className="mt-1 text-2xl font-semibold tracking-tight">{verdict.label}</p><p className="mt-3 text-sm leading-6 opacity-70">{decision.reason}</p></div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2"><Metric icon={Zap} label="Laya 延时" value={`${decision.elapsedMs}ms`} /><Metric icon={Database} label="Laya 输入" value={`${decision.inputTokens} tok`} /><Metric icon={MessageSquareText} label="自由文本" value="0" /></div>
+              <div className="mt-4 grid grid-cols-3 gap-2"><Metric icon={Zap} label="JEV 延时" value={`${decision.elapsedMs}ms`} /><Metric icon={Database} label="JEV 输入" value={`${decision.inputTokens} tok`} /><Metric icon={MessageSquareText} label="自由文本" value="0" /></div>
               <div className="mt-4 space-y-2.5"><Signal label="动作类型" value={classLabels[decision.answers.actionClass.choice] || decision.answers.actionClass.choice} score={decision.answers.actionClass.confidence} /><Signal label="风险分" value={`${decision.answers.risk.score.toFixed(2)} / 3`} score={decision.answers.risk.confidence} /><Signal label="用户已授权" value={pct(decision.answers.authorized)} score={decision.answers.authorized} /><Signal label="需要确认" value={pct(decision.answers.needsHuman)} score={decision.answers.needsHuman} warn /></div>
               <div className="mt-5 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4"><p className="text-xs font-medium text-white/55">策略命中</p><ul className="mt-3 space-y-2">{decision.policyHits.map((hit) => <li key={hit} className="flex gap-2 text-xs leading-5 text-white/50"><ArrowRight className="mt-0.5 size-3.5 shrink-0 text-emerald-300" />{hit}</li>)}</ul></div>
               <div className="mt-5"><p className="mb-2 text-xs text-white/40">人工反馈可用于离线校准</p>{reviewed ? <div className="flex items-center justify-between rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] p-3 text-sm text-emerald-100"><span className="flex items-center gap-2"><CheckCircle2 className="size-4" />{reviewed === "confirmed" ? "已确认判断" : "已记录人工覆盖"}</span><button onClick={() => setReviewed(null)} aria-label="撤销反馈"><RotateCcw className="size-4 opacity-55" /></button></div> : <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={() => setReviewed("confirmed")} className="border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]">确认</Button><Button variant="outline" onClick={() => setReviewed("overridden")} className="border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]">覆盖</Button></div>}</div>
@@ -193,7 +193,7 @@ export default function Home() {
         </aside>
       </section>
       {decision && <BenchmarkPanel benchmark={decision.benchmark} />}
-      <footer className="border-t border-white/10 bg-[#07110f] px-6 py-4 text-xs text-white/32"><div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3"><span>Laya 在本地返回类型化决策，不生成自由文本；语义判断仍通过概率阈值与人工确认兜底。</span><span className="font-mono">open · local · typed · auditable</span></div></footer>
+      <footer className="border-t border-white/10 bg-[#07110f] px-6 py-4 text-xs text-white/32"><div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3"><span>JEV 返回类型化决策，不生成自由文本；语义判断仍通过概率阈值与人工确认兜底。</span><span className="font-mono">fast · typed · bounded · auditable</span></div></footer>
     </main>
   );
 }
@@ -207,24 +207,24 @@ function BenchmarkPanel({ benchmark }: { benchmark: Decision["benchmark"] }) {
     <section className="border-t border-white/10 bg-[#081512] px-5 py-10 lg:px-8">
       <div className="mx-auto max-w-[1310px]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-300/70">Decision benchmark</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">同一输入，两种决策路径</h2><p className="mt-2 text-sm text-white/42">本地 Laya 类型化概率 vs DeepSeek 生成 JSON 后再解析校验</p></div>
+          <div><p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-300/70">Decision benchmark</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">同一输入，两种决策路径</h2><p className="mt-2 text-sm text-white/42">官方 JEV 类型化概率 vs DeepSeek 生成 JSON 后再解析校验</p></div>
           <span className={`w-fit rounded-full px-3 py-1.5 text-xs ${benchmark.mode === "live" ? "bg-emerald-300/10 text-emerald-200" : benchmark.mode === "mixed" ? "bg-amber-300/10 text-amber-200" : "bg-sky-300/10 text-sky-200"}`}>{modeLabel}</span>
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <CompareMetric label="端到端耗时" left={`${benchmark.laya.elapsedMs} ms`} right={`${benchmark.baseline.elapsedMs} ms`} summary={`Laya ${benchmark.speedup}× faster`} />
-          <CompareMetric label="单次 API 费用" left={usd(benchmark.laya.costUsd)} right={usd(benchmark.baseline.costUsd)} summary="Laya 本地运行，无按次 API 费" />
-          <CompareMetric label="Token 用量" left={`${benchmark.laya.usage.inputTokens} in / ${benchmark.laya.usage.outputTokens} out`} right={`${benchmark.baseline.usage.inputTokens} in / ${benchmark.baseline.usage.outputTokens} out`} summary="Laya 不生成自由文本" />
+          <CompareMetric label="端到端耗时" left={`${benchmark.jev.elapsedMs} ms`} right={`${benchmark.baseline.elapsedMs} ms`} summary={`JEV ${benchmark.speedup}× faster`} />
+          <CompareMetric label="单次 API 费用" left={usd(benchmark.jev.costUsd)} right={usd(benchmark.baseline.costUsd)} summary={`本次相差 ${usd(benchmark.costDeltaUsd)}`} />
+          <CompareMetric label="Token 用量" left={`${benchmark.jev.usage.inputTokens} in / ${benchmark.jev.usage.outputTokens} out`} right={`${benchmark.baseline.usage.inputTokens} in / ${benchmark.baseline.usage.outputTokens} out`} summary="JEV 输出 token 不计费" />
           <CompareMetric label="输出约束" left="类型 + 概率分布" right="生成 JSON + Schema 校验" summary="两边都做代码门控" />
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <RawCard title="Laya · 原始 API 响应" engine={benchmark.laya} accent="emerald" />
+          <RawCard title="JEV · 原始 API 响应" engine={benchmark.jev} accent="emerald" />
           <RawCard title="DeepSeek · 原始 API 响应" engine={benchmark.baseline} accent="violet" />
         </div>
 
         <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-3 text-xs leading-5 text-white/38">
-          <span className="text-white/60">计价口径：</span>Laya {benchmark.pricing.laya}；DeepSeek {benchmark.pricing.baseline}。{benchmark.pricing.note}
+          <span className="text-white/60">计价口径：</span>JEV {benchmark.pricing.jev}；DeepSeek {benchmark.pricing.baseline}。{benchmark.pricing.note}
         </div>
       </div>
     </section>
@@ -232,7 +232,7 @@ function BenchmarkPanel({ benchmark }: { benchmark: Decision["benchmark"] }) {
 }
 
 function CompareMetric({ label, left, right, summary }: { label: string; left: string; right: string; summary: string }) {
-  return <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><p className="text-xs text-white/38">{label}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><span className="text-[10px] text-emerald-300/60">LAYA · LOCAL</span><p className="mt-1 font-mono text-sm text-emerald-100">{left}</p></div><div><span className="text-[10px] text-violet-300/60">DEEPSEEK</span><p className="mt-1 font-mono text-sm text-violet-100">{right}</p></div></div><p className="mt-3 border-t border-white/[0.06] pt-3 text-xs text-white/48">{summary}</p></div>;
+  return <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><p className="text-xs text-white/38">{label}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><span className="text-[10px] text-emerald-300/60">JEV · SYSTEM ONE</span><p className="mt-1 font-mono text-sm text-emerald-100">{left}</p></div><div><span className="text-[10px] text-violet-300/60">DEEPSEEK</span><p className="mt-1 font-mono text-sm text-violet-100">{right}</p></div></div><p className="mt-3 border-t border-white/[0.06] pt-3 text-xs text-white/48">{summary}</p></div>;
 }
 
 function RawCard({ title, engine, accent }: { title: string; engine: EngineResult; accent: "emerald" | "violet" }) {
