@@ -1,201 +1,149 @@
-<div align="center">
-
 # 🛡️ JevGate
 
-### Open, local System One decisions for AI agent actions
-
-在 Agent 调用工具前，用本地 Laya 快速判断：**ALLOW / ASK / BLOCK**
+### Typed approval firewall for AI agent tool calls
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Open_JevGate-10b981?style=for-the-badge&logo=vercel&logoColor=white)](https://jev-guard-studio.citrus-grove-3996.chatgpt.site)
-[![Laya](https://img.shields.io/badge/Engine-Laya_Local-34d399?style=flat-square)](https://github.com/NandhaKishorM/laya)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=nextdotjs)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-f5c542?style=flat-square)](LICENSE)
 
-[在线演示](https://jev-guard-studio.citrus-grove-3996.chatgpt.site) · [工作原理](#-工作原理) · [本地运行](#-本地运行)
+[![JEV](https://img.shields.io/badge/Engine-TypeSafe_JEV-34d399?style=flat-square)](https://typesafe.ai/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=nextdotjs)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
-</div>
+JevGate sits between an AI agent and its tools. Before a tool call executes, it asks JEV four bounded questions and routes the action to `ALLOW`, `ASK`, or `BLOCK` with deterministic policy code.
 
----
+**[在线演示](https://jev-guard-studio.citrus-grove-3996.chatgpt.site)** · [工作原理](#工作原理) · [本地运行](#本地运行)
 
-## 💡 这是什么？
+## 它解决什么问题
 
-Agent 很擅长规划任务，但它准备执行的动作不一定都应该立即放行：
+Agent 能生成工具调用，但“能调用”不等于“应该执行”。退款、发消息、改权限或删数据都需要一个快速、便宜、可审计的审批层。
 
-- 读取工作区文档，可以直接执行吗？
-- 给客户退款，需要用户再次确认吗？
-- 删除生产数据，是否已经越权？
+JevGate 把判断拆成四个固定输出：
 
-JevGate 是 Agent 与工具之间的决策防火墙。项目使用开源的 [Laya](https://github.com/NandhaKishorM/laya) 在本地完成类型化判断，再由确定性策略路由到 `ALLOW`、`ASK` 或 `BLOCK`。
+| 信号 | 类型 | 用途 |
+| --- | --- | --- |
+| `action_class` | Choice | 只读、可逆写入、外部副作用或破坏性操作 |
+| `risk_level` | Score | `0–3` 风险等级 |
+| `user_authorized` | Noul | 用户是否明确授权，返回 `P(yes)` |
+| `needs_human` | Noul | 是否需要人工确认，返回 `P(yes)` |
+
+JEV 只在调用方定义的答案空间内返回类型、概率和置信度，不生成解释文本。因此应用不需要从自然语言中提取 JSON，也不会收到模型臆造的字段；语义判断仍可能出错，所以最终执行权始终属于策略代码。
+
+## 工作原理
 
 ```text
 Agent proposes a tool call
-            │
-            ▼
-  Local Laya typed decisions
-  Choice · Score · Noul · Noul
-            │
-            ▼
-    Deterministic policy
-      ┌─────┼─────┐
-      ▼     ▼     ▼
-    ALLOW  ASK  BLOCK
+           │
+           ▼
+Known facts + minimal session context
+           │
+           ├──► TypeSafe JEV /v1/systemone
+           │       └─ choice + score + probabilities
+           │
+           └──► DeepSeek /v1/chat/completions
+                   └─ generated JSON + schema validation
+           │
+           ▼
+Deterministic policy
+           │
+     ALLOW · ASK · BLOCK
 ```
 
-Laya 没有工具执行权限。最终动作始终由应用代码决定。
+模型只提供信号，不直接执行工具。代码会优先使用工具元数据和明确授权，例如：
 
-## 🎮 三个演示案例
+- 只读 + 明确授权 + 低风险 → `ALLOW`
+- 外部副作用或授权不清 → `ASK`
+- 未授权的破坏性操作 → `BLOCK`
 
-| Agent 动作 | 关键风险 | 预期结果 |
-| --- | --- | :---: |
-| 📄 读取工作区文档 | 只读、范围明确 | `ALLOW` |
-| 💳 向客户退款 ¥699 | 资金副作用、授权不清 | `ASK` |
-| 🗑️ 删除生产数据与备份 | 破坏性、超出用户目标 | `BLOCK` |
+## JEV vs DeepSeek
 
-页面可以调整风险阈值，观察自动化率与安全边界如何变化。
+页面会把同一个状态并行发送给两种 API，并直接展示双方的原始响应：
 
-## ⚡ 为什么使用 Laya？
-
-Laya 是 Apache 2.0 开源的非自回归 System One 决策模型，支持 `choice`、`score` 和 `noul`，并提供与 `/v1/systemone` 兼容的本地 HTTP 服务。
-
-| | Laya | 普通生成式 LLM |
+| | JEV | 生成式 LLM |
 | --- | --- | --- |
-| 部署 | 本地、自托管 | 通常调用外部 API |
-| 输出 | 类型化值与概率 | 生成 JSON 文本后解析 |
-| 多个判断 | 同一请求内完成 | 通常生成完整回答 |
-| API 费用 | `$0` | 输入、输出 Token 计费 |
-| 数据边界 | 状态留在本地 | 状态发送给提供商 |
-| 常见失败 | 语义判断可能错误 | 语义错误、格式漂移、解析失败 |
+| 输出 | 原生 `choice / score / noul` | 自由文本中的 JSON |
+| 合法答案 | 请求前已限定 | 生成后再校验 |
+| 自由文本 | 无 | 有 |
+| 计价 | 输入 token；输出免费 | 输入 + 输出 token |
+| 应用接入 | 直接读取字段 | 清理、解析并校验 |
 
-> [!IMPORTANT]
-> 不生成自由文本可以避免 JSON 字段漂移、额外动作和解析失败等结构性问题，但不代表模型永远判断正确。项目仍保留概率阈值、确定性规则与人工确认。
+一次真实危险操作测试返回：
 
-## 📊 Laya vs DeepSeek
-
-同一份动作状态会并行进入两条路径：
-
-```text
-                         ┌─ Local Laya /v1/systemone
-Same action state ───────┤  → typed probabilities
-                         │
-                         └─ DeepSeek /v1/chat/completions
-                            → generated JSON → parse → validate
+```json
+{
+  "model": "jev-1.13.0",
+  "answers": {
+    "actionClass": { "type": "choice", "choice": "destructive", "confidence": 1 },
+    "risk": { "type": "score", "score": 3, "confidence": 1 },
+    "authorized": { "type": "noul", "noul": 0.02 },
+    "needsHuman": { "type": "noul", "noul": 0.98 }
+  },
+  "usage": { "input_tokens": 502, "output_tokens": 106 }
+}
 ```
 
-页面直接展示：
+该请求端到端约 `0.74s`。延时会随网络和服务状态变化，页面每次都显示本次真实测量值。
 
-- 两边的原始响应
-- 规范化后的决策字段
-- 端到端耗时
-- 输入 / 输出 Token
-- API 费用差异
+费用采用代码内公开口径估算：JEV `$0.042 / 1M` 输入 token、输出免费；DeepSeek 基线 `$1.32 / 1M` 输入和 `$3.96 / 1M` 输出。代理渠道的实际账单可能不同。
 
-| 状态 | 含义 |
-| --- | --- |
-| `LIVE × LIVE` | Laya 和 DeepSeek 都是真实调用 |
-| `MIXED` | 一边真实、一边 Demo，不用于公平结论 |
-| `DEMO × DEMO` | 可重复的演示数据 |
+## 本地运行
 
-## 🏗️ 工作原理
-
-一次 Laya 请求并行回答四个原子问题：
-
-1. **Choice** — 动作属于只读、可逆写入、外部副作用还是破坏性操作？
-2. **Score** — 当前动作风险位于 0–3 的哪个区间？
-3. **Noul** — 用户是否明确授权了这个具体动作？
-4. **Noul** — 谨慎的操作者是否应该先确认？
-
-模型只返回信号，策略代码负责组合信号并执行安全边界。
-
-## 🚀 本地运行
-
-要求：Node.js 22.13+、Python 3.10+。首次启动 Laya 会从 Hugging Face 下载模型。
-
-### 1. 启动 Laya
-
-```bash
-python3 -m venv .venv-laya
-source .venv-laya/bin/activate
-pip install -r requirements-laya.txt
-LAYA_HOST=127.0.0.1 LAYA_PORT=8000 LAYA_MODELS=typed-decisions LAYA_MAX_LOADED=1 laya-serve
-```
-
-本项目默认使用针对类型化工作流优化的 `typed-decisions` checkpoint，并将工具注册表中的执行属性作为已知事实传入。服务启动后提供：
-
-```text
-POST http://127.0.0.1:8000/v1/systemone
-```
-
-### 2. 启动 JevGate
+要求：Node.js 22.13+。
 
 ```bash
 git clone https://github.com/skyblue-ustc/JEV-gate.git
 cd JEV-gate
 npm install
 cp .env.example .env.local
+```
+
+配置服务端环境变量：
+
+```dotenv
+JEV_API_KEY=your_typesafe_api_key
+JEV_BASE_URL=https://api.typesafe.ai
+JEV_MODEL=jev-latest
+
+BASELINE_API_KEY=your_openai_compatible_key
+BASELINE_BASE_URL=https://your-provider.example
+BASELINE_MODEL=your-model
+```
+
+然后启动：
+
+```bash
 npm run dev
 ```
 
-`.env.local`：
+打开终端输出的本地地址。API 密钥只由服务端路由读取，不会发送到浏览器，也不要提交 `.env.local`。
 
-```dotenv
-LAYA_BASE_URL=http://127.0.0.1:8000
-LAYA_MODEL=typed-decisions
-
-# Optional DeepSeek baseline
-BASELINE_API_KEY=your_api_key
-BASELINE_BASE_URL=https://your-provider.example.com
-BASELINE_MODEL=DeepSeek-V4-Pro-0813
-```
-
-打开 `http://localhost:5173`。如果没有配置 Laya 地址，页面会明确显示 Demo Mode。
-
-## 🔒 安全边界
-
-- Laya 默认运行在本机，输入状态无需离开设备
-- API 失败、超时或 Schema 校验失败时不会静默放行动作
-- 破坏性且未授权的动作直接阻止
-- 资金、消息和账户变更默认要求确认
-- 模型负责判断，普通代码负责策略，执行器负责动作
-- Demo 数据始终带有明确标记
-- 本地推理的 `$0` 指无按次 API 费，不包含硬件与电力成本
-
-## 📁 项目结构
+## 项目结构
 
 ```text
 app/
-├── page.tsx              # 审批工作台与 A/B 面板
-└── api/decide/route.ts   # Laya、DeepSeek 调用与策略门控
-
-requirements-laya.txt     # 本地 Laya 推理依赖
-.env.example              # 服务端环境变量模板
-README.md                 # 项目说明与设计文档
+├── page.tsx              # 审批工作台与原始响应对比
+├── api/decide/route.ts   # JEV、DeepSeek 与确定性策略
+└── globals.css           # 主题与响应式样式
+components/ui/            # 交互组件
+.env.example              # 环境变量模板
 ```
 
-## 📚 参考资料
+## 设计原则
 
-- [Laya GitHub](https://github.com/NandhaKishorM/laya)
-- [Laya 模型卡](https://huggingface.co/convaiinnovations/laya)
-- [TypeSafe System One Adapter](https://github.com/typesafe-ai/system-one-adapter-python)
-- [DeepSeek Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing)
+- **Bounded**：模型只能回答预先定义的选项。
+- **Fail closed**：API 或 Schema 失败时不执行动作。
+- **Policy owns execution**：概率是输入，代码才做最终路由。
+- **Minimal context**：只发送判断需要的状态和事实。
+- **Auditable**：保留模型版本、原始输出、耗时、Token 与策略命中。
 
-## 🗺️ Roadmap
+## Roadmap
 
-- [x] Agent 动作审批工作台
-- [x] 本地 Laya `/v1/systemone` 接入
-- [x] Laya / DeepSeek 原始输出对比
-- [x] 延时、Token 与 API 费用对比
-- [x] Demo / Mixed / Live 状态标记
-- [ ] JSONL Trace 回放与批量评测
-- [ ] Coverage–Risk 阈值曲线
-- [ ] Prompt injection 独立检测
+- [x] TypeSafe JEV `/v1/systemone` 真实接入
+- [x] JEV / DeepSeek 原始输出、延时与费用对比
+- [x] `ALLOW / ASK / BLOCK` 确定性策略
+- [x] 可调人工确认与自动阻止阈值
+- [ ] 批量回放与离线校准
+- [ ] 审批日志持久化与导出
 
----
+## License
 
-<div align="center">
-
-Open · local · typed · auditable
-
-**[Try the live demo →](https://jev-guard-studio.citrus-grove-3996.chatgpt.site)**
-
-</div>
+[MIT](LICENSE)
