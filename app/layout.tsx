@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "JevGate · Agent Action Firewall",
-  description: "A fast, typed Jev decision gate for approving, confirming, or blocking AI agent tool calls.",
+  description: "An open, local Laya decision gate for approving, confirming, or blocking AI agent tool calls.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
